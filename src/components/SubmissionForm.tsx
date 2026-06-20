@@ -13,7 +13,10 @@ interface SubmissionFormProps {
   eventSlug: string;
 }
 
-const UPLOAD_TIMEOUT_MS = 45_000;
+const MIN_UPLOAD_TIMEOUT_MS = 120_000;
+const MAX_UPLOAD_TIMEOUT_MS = 600_000;
+const UPLOAD_ESTIMATED_BANDWIDTH_BPS = 256 * 1024;
+const MULTIPART_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
@@ -50,20 +53,32 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
     return "媒体文件上传失败，请重试";
   };
 
+  const getUploadTimeoutMs = (selectedFile: File): number => {
+    const estimatedMs = Math.ceil(
+      (selectedFile.size / UPLOAD_ESTIMATED_BANDWIDTH_BPS) * 1000 * 2
+    );
+    return Math.min(
+      MAX_UPLOAD_TIMEOUT_MS,
+      Math.max(MIN_UPLOAD_TIMEOUT_MS, estimatedMs)
+    );
+  };
+
   const uploadWithTimeout = async (selectedFile: File) => {
     return new Promise<Awaited<ReturnType<typeof upload>>>((resolve, reject) => {
       let settled = false;
       const abortController = new AbortController();
+      const timeoutMs = getUploadTimeoutMs(selectedFile);
       const timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
         abortController.abort();
         reject(new Error("UPLOAD_TIMEOUT"));
-      }, UPLOAD_TIMEOUT_MS);
+      }, timeoutMs);
 
       upload(selectedFile.name, selectedFile, {
         access: "public",
         handleUploadUrl: "/api/upload",
+        multipart: selectedFile.size >= MULTIPART_UPLOAD_THRESHOLD_BYTES,
         clientPayload: JSON.stringify({ eventSlug }),
         abortSignal: abortController.signal,
       })
