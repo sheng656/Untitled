@@ -17,8 +17,8 @@ const MIN_UPLOAD_TIMEOUT_MS = 120_000;
 const MAX_UPLOAD_TIMEOUT_MS = 600_000;
 const UPLOAD_FALLBACK_BANDWIDTH_BPS = 256 * 1024;
 const MULTIPART_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
-const MIN_DETECTED_BANDWIDTH_BPS = 64 * 1024;
-const MAX_DETECTED_BANDWIDTH_BPS = 5 * 1024 * 1024;
+const MIN_DETECTED_BANDWIDTH_BPS = 64 * 1000;
+const MAX_DETECTED_BANDWIDTH_BPS = 5 * 1000 * 1000;
 const UPLOAD_TIMEOUT_SAFETY_FACTOR = 2;
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
@@ -63,7 +63,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         : undefined;
     const detectedBandwidthBps =
       typeof detectedDownlinkMbps === "number" && Number.isFinite(detectedDownlinkMbps)
-        ? Math.round((detectedDownlinkMbps * 1024 * 1024) / 8)
+        ? Math.round((detectedDownlinkMbps * 1000 * 1000) / 8)
         : undefined;
     const effectiveBandwidthBps = Math.min(
       MAX_DETECTED_BANDWIDTH_BPS,
