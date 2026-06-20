@@ -6,6 +6,14 @@ import { typeLabelMap } from "./TypeFilter";
 import AudioPlayer from "./AudioPlayer";
 import Lightbox from "./Lightbox";
 
+function getDisplayUrl(url: string | null): string {
+  if (!url) return "";
+  if (url.startsWith("https://") && url.includes(".blob.vercel-storage.com")) {
+    return `/api/media?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 interface SubmissionCardProps {
   submission: Submission;
 }
@@ -68,7 +76,7 @@ export default function SubmissionCard({ submission }: SubmissionCardProps) {
           <div className="relative mt-2 overflow-hidden rounded-lg border border-mist/40 bg-mist/10 aspect-video group cursor-zoom-in">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={submission.mediaUrl!}
+              src={getDisplayUrl(submission.mediaUrl)}
               alt={submission.title}
               onClick={() => setIsLightboxOpen(true)}
               className="w-full h-full object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-300"
@@ -78,14 +86,14 @@ export default function SubmissionCard({ submission }: SubmissionCardProps) {
 
         {isAudio && (
           <div className="mt-2">
-            <AudioPlayer src={submission.mediaUrl!} />
+            <AudioPlayer src={getDisplayUrl(submission.mediaUrl)} />
           </div>
         )}
 
         {isVideo && (
           <div className="mt-2 rounded-lg border border-mist/40 bg-black overflow-hidden aspect-video">
             <video
-              src={submission.mediaUrl!}
+              src={getDisplayUrl(submission.mediaUrl)}
               controls
               className="w-full h-full"
               preload="metadata"
@@ -114,7 +122,7 @@ export default function SubmissionCard({ submission }: SubmissionCardProps) {
 
       {isLightboxOpen && submission.mediaUrl && (
         <Lightbox
-          src={submission.mediaUrl}
+          src={getDisplayUrl(submission.mediaUrl)}
           alt={submission.title}
           onClose={() => setIsLightboxOpen(false)}
         />

@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     //    Convert File to Buffer for better Node.js serverless compatibility
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const blob = await put(file.name, fileBuffer, {
-      access: "public",
+      access: "private",
       addRandomSuffix: true,
       contentType: file.type,
     });
