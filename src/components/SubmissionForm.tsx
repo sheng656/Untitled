@@ -13,6 +13,8 @@ interface SubmissionFormProps {
   eventSlug: string;
 }
 
+const UPLOAD_TIMEOUT_MS = 45_000;
+
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
 
@@ -49,9 +51,8 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
   };
 
   const uploadWithTimeout = async (selectedFile: File) => {
-    const timeoutMs = 45_000;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), timeoutMs);
+      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), UPLOAD_TIMEOUT_MS);
     });
 
     return Promise.race([
@@ -130,7 +131,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
     if (file) {
       try {
         setIsUploading(true);
-        setUploadProgress("正在请求上传凭证...");
+        setUploadProgress("正在上传媒体文件...");
         const blob = await uploadWithTimeout(file);
         mediaUrl = blob.url;
         mediaType = file.type;

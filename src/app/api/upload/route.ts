@@ -33,11 +33,9 @@ const getErrorCode = (message: string): string => {
 export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as HandleUploadBody;
-    console.info("Upload request received", {
-      pathname: body.pathname,
-      contentType: body.contentType,
-      size: body.size,
-    });
+    if (process.env.NODE_ENV !== "production") {
+      console.info("Upload request received");
+    }
 
     const jsonResponse = await handleUpload({
       body,
@@ -80,7 +78,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch (error) {
     const message = (error as Error).message;
     const code = getErrorCode(message);
-    console.error("Upload request failed", { code, message });
+    if (process.env.NODE_ENV !== "production") {
+      console.error("Upload request failed", { code, message });
+    } else {
+      console.error("Upload request failed", { code });
+    }
 
     return NextResponse.json(
       { code, error: message },
