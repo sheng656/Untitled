@@ -36,10 +36,17 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as HandleUploadBody;
     if (process.env.NODE_ENV !== "production") {
-      const payload = body as Record<string, unknown>;
       console.info("Upload request received", {
-        contentType: payload.contentType,
-        size: payload.size,
+        type: body.type,
+        ...(body.type === "blob.generate-client-token"
+          ? {
+              pathname: body.payload.pathname,
+              multipart: body.payload.multipart,
+            }
+          : {
+              blobUrl: body.payload.blob.url,
+              contentType: body.payload.blob.contentType,
+            }),
       });
     }
 
@@ -84,6 +91,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const code = getErrorCode(message);
+    const isKnownError = code !== "UPLOAD_REQUEST_FAILED";
+    const publicMessage =
+      process.env.NODE_ENV !== "production" || isKnownError
+        ? message
+        : "Upload request failed";
     if (process.env.NODE_ENV !== "production") {
       console.error("Upload request failed", { code, message });
     } else {
@@ -91,7 +103,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     return NextResponse.json(
-      { code, error: message },
+      { code, error: publicMessage },
       { status: code === "AUTH_EXPIRED" ? 401 : 400 }
     );
   }

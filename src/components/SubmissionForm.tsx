@@ -53,9 +53,11 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
   const uploadWithTimeout = async (selectedFile: File) => {
     return new Promise<Awaited<ReturnType<typeof upload>>>((resolve, reject) => {
       let settled = false;
+      const abortController = new AbortController();
       const timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
+        abortController.abort();
         reject(new Error("UPLOAD_TIMEOUT"));
       }, UPLOAD_TIMEOUT_MS);
 
@@ -63,6 +65,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         access: "public",
         handleUploadUrl: "/api/upload",
         clientPayload: JSON.stringify({ eventSlug }),
+        abortSignal: abortController.signal,
       })
         .then((result) => {
           if (settled) return;
@@ -158,6 +161,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       } catch (err) {
         console.error("Upload error:", err);
         setError(getUploadErrorMessage(err));
+        setUploadProgress(null);
         return;
       } finally {
         setIsUploading(false);
@@ -187,6 +191,10 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         setError(result.error || "提交作品出错，请重试");
         setUploadProgress(null);
       }
+    } catch (err) {
+      console.error("Submission save error:", err);
+      setError("提交作品出错，请重试");
+      setUploadProgress(null);
     } finally {
       setIsSubmitting(false);
     }
