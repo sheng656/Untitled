@@ -53,6 +53,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const jsonResponse = await handleUpload({
       body,
       request,
+      // Explicitly specify store so OIDC can resolve the correct blob endpoint
+      ...(process.env.BLOB_STORE_ID ? { storeId: process.env.BLOB_STORE_ID } : {}),
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         // 1. Extract the event slug from payload
         let eventSlug = "";
