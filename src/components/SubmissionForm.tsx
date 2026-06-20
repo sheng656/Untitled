@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
+import { upload } from "@vercel/blob/client";
 import { createSubmission } from "@/lib/actions";
 import { SUBMISSION_TYPES } from "@/lib/validators";
 import { typeLabelMap } from "./TypeFilter";
@@ -12,8 +13,9 @@ interface SubmissionFormProps {
   eventSlug: string;
 }
 
-// Server-side upload avoids CORS issues with client-side blob token exchange
-const MAX_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024; // 4MB (Vercel serverless body limit)
+// Direct client-side upload bypasses Serverless Function payload limit (4.5MB)
+// Vercel Blob Free tier allows up to 100MB uploads directly from browser
+const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
@@ -45,28 +47,19 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       return "当前文件格式不支持，请更换为常见图片或音频格式";
     }
     if (normalized.includes("FILE_TOO_LARGE")) {
-      return "文件太大，请压缩后重试（上限 4MB）";
+      return "文件太大，请压缩后重试（上限 100MB）";
     }
     return "媒体文件上传失败，请重试";
   };
 
   const uploadFile = async (selectedFile: File): Promise<{ url: string }> => {
-    const body = new FormData();
-    body.append("file", selectedFile);
-    body.append("eventSlug", eventSlug);
-
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body,
+    const blob = await upload(selectedFile.name, selectedFile, {
+      access: "private",
+      handleUploadUrl: "/api/upload",
+      clientPayload: JSON.stringify({ eventSlug }),
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || data.code || "Upload failed");
-    }
-
-    return { url: data.url };
+    return { url: blob.url };
   };
 
   const getSubmitButtonLabel = () => {
@@ -102,9 +95,9 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         setUploadProgress(null);
       }
     } else {
-      // Audio or video or other files (limit to 10MB)
+      // Audio or video or other files (limit to 100MB)
       if (selectedFile.size > MAX_UPLOAD_SIZE_BYTES) {
-        setError("媒体文件不能超过 4MB");
+        setError(`媒体文件不能超过 ${MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)}MB`);
         return;
       }
       setFile(selectedFile);
