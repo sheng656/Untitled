@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import imageCompression from "browser-image-compression";
@@ -15,7 +15,6 @@ interface SubmissionFormProps {
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
 
   // Form states
   const [authorName, setAuthorName] = useState("");
@@ -29,6 +28,41 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isBusy = isUploading || isSubmitting;
+
+  const getUploadErrorMessage = (err: unknown): string => {
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const normalized = rawMessage.toUpperCase();
+
+    if (normalized.includes("AUTH_EXPIRED") || normalized.includes("UNAUTHORIZED")) {
+      return "口令已过期，请刷新页面后重新验证口令";
+    }
+    if (normalized.includes("UNSUPPORTED_FILE_TYPE")) {
+      return "当前文件格式不支持，请更换为常见图片或音频格式";
+    }
+    if (normalized.includes("UPLOAD_TIMEOUT")) {
+      return "上传超时，请检查网络后重试";
+    }
+    return "媒体文件上传失败，请重试";
+  };
+
+  const uploadWithTimeout = async (selectedFile: File) => {
+    const timeoutMs = 45_000;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), timeoutMs);
+    });
+
+    return Promise.race([
+      upload(selectedFile.name, selectedFile, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        clientPayload: JSON.stringify({ eventSlug }),
+      }),
+      timeoutPromise,
+    ]);
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -89,28 +123,29 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       return;
     }
 
-    startTransition(async () => {
-      let mediaUrl = "";
-      let mediaType = "";
+    let mediaUrl = "";
+    let mediaType = "";
 
-      // 1. Upload file if needed
-      if (file) {
-        try {
-          setUploadProgress("正在上传媒体文件...");
-          const blob = await upload(file.name, file, {
-            access: "public",
-            handleUploadUrl: "/api/upload",
-            clientPayload: JSON.stringify({ eventSlug }),
-          });
-          mediaUrl = blob.url;
-          mediaType = file.type;
-        } catch (err) {
-          console.error("Upload error:", err);
-          setError("媒体文件上传失败，请重试");
-          return;
-        }
+    // 1. Upload file if needed
+    if (file) {
+      try {
+        setIsUploading(true);
+        setUploadProgress("正在请求上传凭证...");
+        const blob = await uploadWithTimeout(file);
+        mediaUrl = blob.url;
+        mediaType = file.type;
+        setUploadProgress("媒体上传完成，正在保存作品数据...");
+      } catch (err) {
+        console.error("Upload error:", err);
+        setError(getUploadErrorMessage(err));
+        return;
+      } finally {
+        setIsUploading(false);
       }
+    }
 
+    try {
+      setIsSubmitting(true);
       setUploadProgress("正在保存作品数据...");
 
       // 2. Submit to DB via Server Action
@@ -130,8 +165,11 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         router.refresh();
       } else {
         setError(result.error || "提交作品出错，请重试");
+        setUploadProgress(null);
       }
-    });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -159,7 +197,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
           value={authorName}
           onChange={(e) => setAuthorName(e.target.value)}
           placeholder="名余曰正则兮..."
-          disabled={isPending}
+          disabled={isBusy}
           required
           className="w-full px-4 py-2 border border-mist hover:border-ink/25 focus:border-ink focus:outline-none rounded-lg bg-paper-dark/10 text-ink text-sm transition duration-200"
         />
@@ -175,7 +213,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="如：《九歌·国殇》 / 端午香粽"
-          disabled={isPending}
+          disabled={isBusy}
           required
           className="w-full px-4 py-2 border border-mist hover:border-ink/25 focus:border-ink focus:outline-none rounded-lg bg-paper-dark/10 text-ink text-sm transition duration-200"
         />
@@ -192,7 +230,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
                 key={t}
                 type="button"
                 onClick={() => handleTypeChange(t)}
-                disabled={isPending}
+                disabled={isBusy}
                 className={`py-2 px-3 border rounded-lg text-xs font-medium text-center transition-all duration-200 cursor-pointer ${
                   isSelected
                     ? "bg-ink border-ink text-paper"
@@ -217,7 +255,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
               type="file"
               accept={type === "music" ? "audio/*" : "image/*"}
               onChange={handleFileChange}
-              disabled={isPending}
+              disabled={isBusy}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
             <div className="text-center space-y-1 select-none pointer-events-none">
@@ -260,7 +298,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
               ? "长太息以掩涕兮，哀民生之多艰。..."
               : "输入作品的文字介绍、故事或补充说明（可选）"
           }
-          disabled={isPending}
+          disabled={isBusy}
           required={type === "poetry"}
           className="w-full px-4 py-2 border border-mist hover:border-ink/25 focus:border-ink focus:outline-none rounded-lg bg-paper-dark/10 text-ink text-sm transition duration-200 resize-none font-serif leading-relaxed"
         />
@@ -276,7 +314,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="朝饮木兰之坠露兮，夕餐秋菊之落英。"
-          disabled={isPending}
+          disabled={isBusy}
           className="w-full px-4 py-2 border border-mist hover:border-ink/25 focus:border-ink focus:outline-none rounded-lg bg-paper-dark/10 text-ink text-sm transition duration-200"
         />
       </div>
@@ -291,16 +329,16 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       {/* Submit Button */}
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isBusy}
         className="w-full py-3 bg-cinnabar text-paper hover:bg-cinnabar-light font-serif font-bold text-sm rounded-lg transition duration-200 disabled:opacity-50 cursor-pointer flex items-center justify-center space-x-2"
       >
-        {isPending ? (
+        {isBusy ? (
           <>
             <svg className="animate-spin h-4 w-4 text-paper" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
-            <span>正在录存...</span>
+            <span>{isUploading ? "正在上传媒体..." : "正在录存..."}</span>
           </>
         ) : (
           <span>录存留痕</span>
