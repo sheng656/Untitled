@@ -26,16 +26,19 @@ export default async function EventPage({ params }: PageProps) {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "Pacific/Auckland",
   });
 
   const formattedTime = startDate.toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Pacific/Auckland",
   }) + " - " + new Date(event.dateEnd).toLocaleTimeString("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Pacific/Auckland",
   });
 
   return (

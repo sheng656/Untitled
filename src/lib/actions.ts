@@ -109,6 +109,7 @@ export async function createSubmission(
 
     // 4. Revalidate
     revalidatePath(`/events/${eventSlug}`);
+    revalidatePath("/");
 
     return { success: true };
   } catch (error) {

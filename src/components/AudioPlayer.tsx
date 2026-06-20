@@ -15,12 +15,11 @@ export default function AudioPlayer({ src }: AudioPlayerProps) {
 
   const togglePlay = () => {
     if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
+    if (audioRef.current.paused) {
       audioRef.current.play().catch((err) => console.log("Audio play error: ", err));
+    } else {
+      audioRef.current.pause();
     }
-    setIsPlaying(!isPlaying);
   };
 
   const formatTime = (time: number) => {
@@ -71,6 +70,8 @@ export default function AudioPlayer({ src }: AudioPlayerProps) {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         preload="metadata"
       />
       <button

@@ -17,7 +17,7 @@ export async function POST(request: Request): Promise<NextResponse> {
             const payload = JSON.parse(clientPayload);
             eventSlug = payload.eventSlug || "";
           }
-        } catch (e) {
+        } catch {
           throw new Error("Invalid client payload");
         }
 
