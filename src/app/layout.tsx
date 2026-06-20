@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Untitled · 雅集",
-  description: "Untitled 读书会活动作品留痕站 — 记录与分享属于我们自己的美。",
+  description: "Untitled 读书群活动作品留痕站 — 记录与分享属于我们自己的美。",
 };
 
 export default function RootLayout({

@@ -44,7 +44,7 @@ export default function PasswordGate({ eventSlug, onSuccess }: PasswordGateProps
           </div>
           <h2 className="text-2xl font-bold font-serif text-ink">入林凭信</h2>
           <p className="text-xs text-ink-light leading-relaxed">
-            此为 Untitled 读书会雅集归痕处。<br />
+            此为 Untitled 读书群雅集归痕处。<br />
             请输入群内发布的活动投稿口令以续良缘。
           </p>
         </div>

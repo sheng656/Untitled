@@ -21,7 +21,7 @@ export default async function Home() {
           「 扈江离与辟芷兮，纫秋兰以为佩 」
         </p>
         <p className="text-xs text-ink-light/75 tracking-wider max-w-md mx-auto leading-relaxed">
-          Untitled 读书会活动留痕之所，汇聚众友的诗词、美食、绘画、穿搭与雅兴。
+          Untitled 读书群活动留痕之所，汇聚众友的诗词、美食、绘画、穿搭与雅兴。
         </p>
       </header>
 
@@ -54,7 +54,7 @@ export default async function Home() {
 
       {/* Footer */}
       <footer className="pt-12 border-t border-mist/40 text-center text-[10px] text-ink-light/60 space-y-1 select-none">
-        <p>© 2026 Untitled 读书会. 滋兰之九畹.</p>
+        <p>© 2026 Untitled 读书群. 滋兰之九畹.</p>
         <p className="font-serif">修能内美，各展风华</p>
       </footer>
     </div>

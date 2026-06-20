@@ -103,7 +103,7 @@ export default async function EventPage({ params }: PageProps) {
 
       {/* Footer */}
       <footer className="pt-8 border-t border-mist/40 text-center text-[10px] text-ink-light/50 select-none">
-        <p>Untitled 读书会 · 雅集存真</p>
+        <p>Untitled 读书群 · 雅集存真</p>
       </footer>
     </div>
   );
