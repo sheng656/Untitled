@@ -63,7 +63,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.code || data.error || "Upload failed");
+      throw new Error(data.error || data.code || "Upload failed");
     }
 
     return { url: data.url };

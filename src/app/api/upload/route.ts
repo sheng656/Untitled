@@ -79,23 +79,34 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    // 4. Upload to Vercel Blob via server-side put()
-    //    OIDC auth is resolved automatically on Vercel when BLOB_STORE_ID is set
-    const blob = await put(file.name, file, {
-      access: "public",
-      addRandomSuffix: true,
+    // 4. Log available auth methods for diagnostics
+    console.info("Blob upload auth check:", {
+      hasBlobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
+      hasBlobStoreId: !!process.env.BLOB_STORE_ID,
+      hasOidcToken: !!process.env.VERCEL_OIDC_TOKEN,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
     });
 
-    if (process.env.NODE_ENV !== "production") {
-      console.info("Server-side blob upload completed:", blob.url);
-    }
+    // 5. Upload to Vercel Blob via server-side put()
+    //    Convert File to Buffer for better Node.js serverless compatibility
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const blob = await put(file.name, fileBuffer, {
+      access: "public",
+      addRandomSuffix: true,
+      contentType: file.type,
+    });
+
+    console.info("Blob upload succeeded:", blob.url);
 
     return NextResponse.json({ url: blob.url, contentType: file.type });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Server-side upload failed:", message);
+    // Return actual error for debugging (safe for a private reading club site)
     return NextResponse.json(
-      { code: "UPLOAD_FAILED", error: "Upload failed, please try again" },
+      { code: "UPLOAD_FAILED", error: message },
       { status: 500 }
     );
   }
