@@ -24,8 +24,8 @@ async function main() {
     .insert(schema.events)
     .values({
       slug: "2026-duanwu",
-      name: "首届“滋兰之九畹”大赛",
-      intro: `名余曰正则兮，字余曰灵均。\n纷吾既有此内美兮，又重之以修能。\n\n6月20号，Untitled读书群将举办本群首届“滋兰之九畹”大赛。\n\n请分享任何属于您自己的美的东西（如诗词、美食、穿搭、绘画、音乐等），大家将送上挚诚的掌声与祝福。`,
+      name: "“滋兰之九畹”雅集",
+      intro: `名余曰正则兮，字余曰灵均。\n纷吾既有此内美兮，又重之以修能。\n\n6月20号，Untitled读书群将举办“滋兰之九畹”雅集。\n\n请分享任何属于您自己的美的东西（如诗词、美食、穿搭、绘画、音乐等），大家将送上挚诚的掌声与祝福。`,
       dateStart: new Date("2026-06-20T17:45:00+12:00"),
       dateEnd: new Date("2026-06-20T21:00:00+12:00"),
       locationName: "Cox's Bay Pavilion",
@@ -38,7 +38,15 @@ async function main() {
   let event = eventResult[0];
 
   if (!event) {
-    console.log("Duanwu event already exists in DB. Retrieving it...");
+    console.log("Duanwu event already exists in DB. Retrieving and updating it...");
+    await db
+      .update(schema.events)
+      .set({
+        name: "“滋兰之九畹”雅集",
+        intro: `名余曰正则兮，字余曰灵均。\n纷吾既有此内美兮，又重之以修能。\n\n6月20号，Untitled读书群将举办“滋兰之九畹”雅集。\n\n请分享任何属于您自己的美的东西（如诗词、美食、穿搭、绘画、音乐等），大家将送上挚诚的掌声与祝福。`,
+      })
+      .where(eq(schema.events.slug, "2026-duanwu"));
+
     const existing = await db
       .select()
       .from(schema.events)
