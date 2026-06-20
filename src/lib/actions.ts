@@ -88,7 +88,7 @@ export async function createSubmission(
     if (!validated.success) {
       return {
         success: false,
-        error: validated.error.errors[0]?.message || "输入数据不合法",
+        error: validated.error.issues[0]?.message || "输入数据不合法",
       };
     }
 

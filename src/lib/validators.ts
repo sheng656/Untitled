@@ -7,9 +7,7 @@ export const submissionSchema = z.object({
     .string()
     .min(1, "请输入您的名字或昵称")
     .max(50, "名字或昵称过长"),
-  type: z.enum(SUBMISSION_TYPES, {
-    errorMap: () => ({ message: "请选择作品类型" }),
-  }),
+  type: z.enum(SUBMISSION_TYPES),
   title: z
     .string()
     .min(1, "请输入作品标题")
