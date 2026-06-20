@@ -13,7 +13,14 @@ interface SubmissionFormProps {
   eventSlug: string;
 }
 
-const UPLOAD_TIMEOUT_MS = 45_000;
+const MIN_UPLOAD_TIMEOUT_MS = 120_000;
+const MAX_UPLOAD_TIMEOUT_MS = 600_000;
+const UPLOAD_FALLBACK_BANDWIDTH_BPS = 256 * 1000; // bytes/sec
+const MULTIPART_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4 MiB
+const MIN_DETECTED_BANDWIDTH_BPS = 64 * 1000; // bytes/sec
+const MAX_DETECTED_BANDWIDTH_BPS = 5 * 1000 * 1000; // bytes/sec
+const UPLOAD_TIMEOUT_SAFETY_FACTOR = 2;
+const BITS_PER_BYTE = 8;
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
@@ -50,20 +57,47 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
     return "媒体文件上传失败，请重试";
   };
 
+  const getUploadTimeoutMs = (selectedFile: File): number => {
+    const detectedDownlinkMbps =
+      typeof navigator !== "undefined" && "connection" in navigator
+        ? (navigator.connection as { downlink?: number }).downlink
+        : undefined;
+    const detectedBandwidthBps =
+      typeof detectedDownlinkMbps === "number" && Number.isFinite(detectedDownlinkMbps)
+        ? Math.round((detectedDownlinkMbps * 1000 * 1000) / BITS_PER_BYTE)
+        : undefined;
+    const effectiveBandwidthBps = Math.min(
+      MAX_DETECTED_BANDWIDTH_BPS,
+      Math.max(
+        MIN_DETECTED_BANDWIDTH_BPS,
+        detectedBandwidthBps ?? UPLOAD_FALLBACK_BANDWIDTH_BPS
+      )
+    );
+    const estimatedMs = Math.ceil(
+      (selectedFile.size / effectiveBandwidthBps) * 1000 * UPLOAD_TIMEOUT_SAFETY_FACTOR
+    );
+    return Math.min(
+      MAX_UPLOAD_TIMEOUT_MS,
+      Math.max(MIN_UPLOAD_TIMEOUT_MS, estimatedMs)
+    );
+  };
+
   const uploadWithTimeout = async (selectedFile: File) => {
     return new Promise<Awaited<ReturnType<typeof upload>>>((resolve, reject) => {
       let settled = false;
       const abortController = new AbortController();
+      const timeoutMs = getUploadTimeoutMs(selectedFile);
       const timeoutId = setTimeout(() => {
         if (settled) return;
         settled = true;
         abortController.abort();
         reject(new Error("UPLOAD_TIMEOUT"));
-      }, UPLOAD_TIMEOUT_MS);
+      }, timeoutMs);
 
       upload(selectedFile.name, selectedFile, {
         access: "public",
         handleUploadUrl: "/api/upload",
+        multipart: selectedFile.size >= MULTIPART_UPLOAD_THRESHOLD_BYTES,
         clientPayload: JSON.stringify({ eventSlug }),
         abortSignal: abortController.signal,
       })
