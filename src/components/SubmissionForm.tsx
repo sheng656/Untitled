@@ -51,18 +51,38 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
   };
 
   const uploadWithTimeout = async (selectedFile: File) => {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("UPLOAD_TIMEOUT")), UPLOAD_TIMEOUT_MS);
-    });
+    return new Promise<Awaited<ReturnType<typeof upload>>>((resolve, reject) => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error("UPLOAD_TIMEOUT"));
+      }, UPLOAD_TIMEOUT_MS);
 
-    return Promise.race([
       upload(selectedFile.name, selectedFile, {
         access: "public",
         handleUploadUrl: "/api/upload",
         clientPayload: JSON.stringify({ eventSlug }),
-      }),
-      timeoutPromise,
-    ]);
+      })
+        .then((result) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          resolve(result);
+        })
+        .catch((err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeoutId);
+          reject(err);
+        });
+    });
+  };
+
+  const getSubmitButtonLabel = () => {
+    if (isUploading) return "正在上传媒体...";
+    if (isSubmitting) return "正在录存...";
+    return "处理中...";
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +155,6 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
         const blob = await uploadWithTimeout(file);
         mediaUrl = blob.url;
         mediaType = file.type;
-        setUploadProgress("媒体上传完成，正在保存作品数据...");
       } catch (err) {
         console.error("Upload error:", err);
         setError(getUploadErrorMessage(err));
@@ -339,7 +358,7 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
             </svg>
-            <span>{isUploading ? "正在上传媒体..." : "正在录存..."}</span>
+            <span>{getSubmitButtonLabel()}</span>
           </>
         ) : (
           <span>录存留痕</span>

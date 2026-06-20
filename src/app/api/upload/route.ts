@@ -7,6 +7,8 @@ const allowedContentTypes = [
   "image/png",
   "image/gif",
   "image/webp",
+  // Some devices produce HEIC/HEIF originals; these formats are uploaded as-is (no client conversion).
+  // Note: many browsers cannot preview HEIC/HEIF directly, so downstream rendering may need conversion.
   "image/heic",
   "image/heif",
   "audio/mpeg",
@@ -34,7 +36,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const body = (await request.json()) as HandleUploadBody;
     if (process.env.NODE_ENV !== "production") {
-      console.info("Upload request received");
+      const payload = body as Record<string, unknown>;
+      console.info("Upload request received", {
+        contentType: payload.contentType,
+        size: payload.size,
+      });
     }
 
     const jsonResponse = await handleUpload({
@@ -76,7 +82,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     return NextResponse.json(jsonResponse);
   } catch (error) {
-    const message = (error as Error).message;
+    const message = error instanceof Error ? error.message : String(error);
     const code = getErrorCode(message);
     if (process.env.NODE_ENV !== "production") {
       console.error("Upload request failed", { code, message });
