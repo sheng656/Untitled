@@ -15,10 +15,11 @@ interface SubmissionFormProps {
 
 const MIN_UPLOAD_TIMEOUT_MS = 120_000;
 const MAX_UPLOAD_TIMEOUT_MS = 600_000;
-const UPLOAD_ESTIMATED_BANDWIDTH_BPS = 256 * 1024;
+const UPLOAD_FALLBACK_BANDWIDTH_BPS = 256 * 1024;
 const MULTIPART_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
 const MIN_DETECTED_BANDWIDTH_BPS = 64 * 1024;
 const MAX_DETECTED_BANDWIDTH_BPS = 5 * 1024 * 1024;
+const UPLOAD_TIMEOUT_SAFETY_FACTOR = 2;
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
@@ -68,11 +69,11 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       MAX_DETECTED_BANDWIDTH_BPS,
       Math.max(
         MIN_DETECTED_BANDWIDTH_BPS,
-        detectedBandwidthBps ?? UPLOAD_ESTIMATED_BANDWIDTH_BPS
+        detectedBandwidthBps ?? UPLOAD_FALLBACK_BANDWIDTH_BPS
       )
     );
     const estimatedMs = Math.ceil(
-      (selectedFile.size / effectiveBandwidthBps) * 1000 * 2
+      (selectedFile.size / effectiveBandwidthBps) * 1000 * UPLOAD_TIMEOUT_SAFETY_FACTOR
     );
     return Math.min(
       MAX_UPLOAD_TIMEOUT_MS,
