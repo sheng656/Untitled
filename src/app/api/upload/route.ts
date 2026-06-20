@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { checkAuth } from "@/lib/actions";
 
@@ -7,8 +7,6 @@ const allowedContentTypes = [
   "image/png",
   "image/gif",
   "image/webp",
-  // Some devices produce HEIC/HEIF originals; these formats are uploaded as-is (no client conversion).
-  // Note: many browsers cannot preview HEIC/HEIF directly, so downstream rendering may need conversion.
   "image/heic",
   "image/heif",
   "audio/mpeg",
@@ -24,89 +22,81 @@ const allowedContentTypes = [
   "video/webm",
 ];
 
-const getErrorCode = (message: string): string => {
-  if (message === "Unauthorized upload request") return "AUTH_EXPIRED";
-  if (message === "Invalid content type") return "UNSUPPORTED_FILE_TYPE";
-  if (message === "Missing event slug") return "MISSING_EVENT_SLUG";
-  if (message === "Invalid client payload") return "INVALID_CLIENT_PAYLOAD";
-  return "UPLOAD_REQUEST_FAILED";
-};
+// Vercel Hobby plan serverless body limit is 4.5MB; keep margin for FormData overhead
+const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Server-side upload route.
+ * Receives the file as FormData and uses put() from @vercel/blob to upload
+ * directly on the server, avoiding CORS issues that occur with client-side
+ * token exchange (handleUpload + client upload()).
+ *
+ * On Vercel, put() authenticates via OIDC automatically using
+ * VERCEL_OIDC_TOKEN + BLOB_STORE_ID — no BLOB_READ_WRITE_TOKEN needed.
+ */
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    const body = (await request.json()) as HandleUploadBody;
-    if (process.env.NODE_ENV !== "production") {
-      console.info("Upload request received", {
-        type: body.type,
-        ...(body.type === "blob.generate-client-token"
-          ? {
-              pathname: body.payload.pathname,
-              multipart: body.payload.multipart,
-            }
-          : {
-              blobUrl: body.payload.blob.url,
-              contentType: body.payload.blob.contentType,
-            }),
-      });
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    const eventSlug = formData.get("eventSlug") as string | null;
+
+    if (!eventSlug) {
+      return NextResponse.json(
+        { code: "MISSING_EVENT_SLUG", error: "Missing event slug" },
+        { status: 400 }
+      );
     }
 
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      // Explicitly specify store so OIDC can resolve the correct blob endpoint
-      ...(process.env.BLOB_STORE_ID ? { storeId: process.env.BLOB_STORE_ID } : {}),
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
-        // 1. Extract the event slug from payload
-        let eventSlug = "";
-        try {
-          if (clientPayload) {
-            const payload = JSON.parse(clientPayload);
-            eventSlug = payload.eventSlug || "";
-          }
-        } catch {
-          throw new Error("Invalid client payload");
-        }
+    if (!file || file.size === 0) {
+      return NextResponse.json(
+        { code: "NO_FILE", error: "No file provided" },
+        { status: 400 }
+      );
+    }
 
-        if (!eventSlug) {
-          throw new Error("Missing event slug");
-        }
+    // 1. Validate authentication via cookie
+    const isAuthed = await checkAuth(eventSlug);
+    if (!isAuthed) {
+      return NextResponse.json(
+        { code: "AUTH_EXPIRED", error: "Unauthorized upload request" },
+        { status: 401 }
+      );
+    }
 
-        // 2. Validate authentication
-        const isAuthed = await checkAuth(eventSlug);
-        if (!isAuthed) {
-          throw new Error("Unauthorized upload request");
-        }
+    // 2. Validate content type
+    if (!allowedContentTypes.includes(file.type)) {
+      return NextResponse.json(
+        { code: "UNSUPPORTED_FILE_TYPE", error: `Unsupported file type: ${file.type}` },
+        { status: 400 }
+      );
+    }
 
-        // 3. Return allowed permissions
-        return {
-          allowedContentTypes,
-          tokenPayload: JSON.stringify({ eventSlug }),
-        };
-      },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // We handle recording in DB during form submit, so we just log here
-        console.log("Blob upload completed:", blob.url, tokenPayload);
-      },
+    // 3. Validate file size
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { code: "FILE_TOO_LARGE", error: "File exceeds 4MB server upload limit" },
+        { status: 400 }
+      );
+    }
+
+    // 4. Upload to Vercel Blob via server-side put()
+    //    OIDC auth is resolved automatically on Vercel when BLOB_STORE_ID is set
+    const blob = await put(file.name, file, {
+      access: "public",
+      addRandomSuffix: true,
     });
 
-    return NextResponse.json(jsonResponse);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const code = getErrorCode(message);
-    const isKnownError = code !== "UPLOAD_REQUEST_FAILED";
-    const publicMessage =
-      process.env.NODE_ENV !== "production" || isKnownError
-        ? message
-        : "Upload request failed";
     if (process.env.NODE_ENV !== "production") {
-      console.error("Upload request failed", { code, message });
-    } else {
-      console.error("Upload request failed", { code });
+      console.info("Server-side blob upload completed:", blob.url);
     }
 
+    return NextResponse.json({ url: blob.url, contentType: file.type });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Server-side upload failed:", message);
     return NextResponse.json(
-      { code, error: publicMessage },
-      { status: code === "AUTH_EXPIRED" ? 401 : 400 }
+      { code: "UPLOAD_FAILED", error: "Upload failed, please try again" },
+      { status: 500 }
     );
   }
 }

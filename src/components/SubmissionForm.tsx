@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { upload } from "@vercel/blob/client";
 import imageCompression from "browser-image-compression";
 import { createSubmission } from "@/lib/actions";
 import { SUBMISSION_TYPES } from "@/lib/validators";
@@ -13,14 +12,8 @@ interface SubmissionFormProps {
   eventSlug: string;
 }
 
-const MIN_UPLOAD_TIMEOUT_MS = 120_000;
-const MAX_UPLOAD_TIMEOUT_MS = 600_000;
-const UPLOAD_FALLBACK_BANDWIDTH_BPS = 256 * 1000; // bytes/sec
-const MULTIPART_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4 MiB
-const MIN_DETECTED_BANDWIDTH_BPS = 64 * 1000; // bytes/sec
-const MAX_DETECTED_BANDWIDTH_BPS = 5 * 1000 * 1000; // bytes/sec
-const UPLOAD_TIMEOUT_SAFETY_FACTOR = 2;
-const BITS_PER_BYTE = 8;
+// Server-side upload avoids CORS issues with client-side blob token exchange
+const MAX_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024; // 4MB (Vercel serverless body limit)
 
 export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormProps) {
   const router = useRouter();
@@ -51,69 +44,29 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
     if (normalized.includes("UNSUPPORTED_FILE_TYPE")) {
       return "当前文件格式不支持，请更换为常见图片或音频格式";
     }
-    if (normalized.includes("UPLOAD_TIMEOUT")) {
-      return "上传超时，请检查网络后重试";
+    if (normalized.includes("FILE_TOO_LARGE")) {
+      return "文件太大，请压缩后重试（上限 4MB）";
     }
     return "媒体文件上传失败，请重试";
   };
 
-  const getUploadTimeoutMs = (selectedFile: File): number => {
-    const detectedDownlinkMbps =
-      typeof navigator !== "undefined" && "connection" in navigator
-        ? (navigator.connection as { downlink?: number }).downlink
-        : undefined;
-    const detectedBandwidthBps =
-      typeof detectedDownlinkMbps === "number" && Number.isFinite(detectedDownlinkMbps)
-        ? Math.round((detectedDownlinkMbps * 1000 * 1000) / BITS_PER_BYTE)
-        : undefined;
-    const effectiveBandwidthBps = Math.min(
-      MAX_DETECTED_BANDWIDTH_BPS,
-      Math.max(
-        MIN_DETECTED_BANDWIDTH_BPS,
-        detectedBandwidthBps ?? UPLOAD_FALLBACK_BANDWIDTH_BPS
-      )
-    );
-    const estimatedMs = Math.ceil(
-      (selectedFile.size / effectiveBandwidthBps) * 1000 * UPLOAD_TIMEOUT_SAFETY_FACTOR
-    );
-    return Math.min(
-      MAX_UPLOAD_TIMEOUT_MS,
-      Math.max(MIN_UPLOAD_TIMEOUT_MS, estimatedMs)
-    );
-  };
+  const uploadFile = async (selectedFile: File): Promise<{ url: string }> => {
+    const body = new FormData();
+    body.append("file", selectedFile);
+    body.append("eventSlug", eventSlug);
 
-  const uploadWithTimeout = async (selectedFile: File) => {
-    return new Promise<Awaited<ReturnType<typeof upload>>>((resolve, reject) => {
-      let settled = false;
-      const abortController = new AbortController();
-      const timeoutMs = getUploadTimeoutMs(selectedFile);
-      const timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        abortController.abort();
-        reject(new Error("UPLOAD_TIMEOUT"));
-      }, timeoutMs);
-
-      upload(selectedFile.name, selectedFile, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        multipart: selectedFile.size >= MULTIPART_UPLOAD_THRESHOLD_BYTES,
-        clientPayload: JSON.stringify({ eventSlug }),
-        abortSignal: abortController.signal,
-      })
-        .then((result) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          resolve(result);
-        })
-        .catch((err) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeoutId);
-          reject(err);
-        });
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body,
     });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.code || data.error || "Upload failed");
+    }
+
+    return { url: data.url };
   };
 
   const getSubmitButtonLabel = () => {
@@ -150,8 +103,8 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       }
     } else {
       // Audio or video or other files (limit to 10MB)
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setError("媒体文件不能超过 10MB");
+      if (selectedFile.size > MAX_UPLOAD_SIZE_BYTES) {
+        setError("媒体文件不能超过 4MB");
         return;
       }
       setFile(selectedFile);
@@ -189,8 +142,8 @@ export default function SubmissionForm({ eventId, eventSlug }: SubmissionFormPro
       try {
         setIsUploading(true);
         setUploadProgress("正在上传媒体文件...");
-        const blob = await uploadWithTimeout(file);
-        mediaUrl = blob.url;
+        const result = await uploadFile(file);
+        mediaUrl = result.url;
         mediaType = file.type;
       } catch (err) {
         console.error("Upload error:", err);
