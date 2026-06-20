@@ -10,6 +10,8 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function SubmitPage({ params }: PageProps) {
   const { slug } = await params;
   const event = await getEventBySlug(slug);

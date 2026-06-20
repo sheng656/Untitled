@@ -9,7 +9,7 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const revalidate = 10; // Rapid revalidation to see submissions quickly
+export const dynamic = "force-dynamic";
 
 export default async function EventPage({ params }: PageProps) {
   const { slug } = await params;
