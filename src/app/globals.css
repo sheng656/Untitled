@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
+@theme {
+  --color-paper: #F7F3E9;
+  --color-paper-dark: #EDE8DA;
+  --color-ink: #3A4750;
+  --color-ink-light: #5A6770;
+  --color-orchid: #8B7AB5;
+  --color-orchid-light: #A899CC;
+  --color-mugwort: #6E8B5E;
+  --color-mugwort-light: #8BA87A;
+  --color-cinnabar: #C1440E;
+  --color-cinnabar-light: #D4611E;
+  --color-mist: #D8D3C4;
+  --color-mist-light: #E8E4D8;
+
+  --font-sans: var(--font-noto-sans-sc), sans-serif;
+  --font-serif: var(--font-noto-serif-sc), serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #F7F3E9;
+  --foreground: #3A4750;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar for Ink Wash Theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F7F3E9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D8D3C4;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C3BEB0;
+}
+
+/* Vertical Text Utility for Poetry */
+.writing-vertical {
+  writing-mode: vertical-rl;
+  text-combine-upright: all;
+}
+
+.writing-mode-lr {
+  writing-mode: vertical-lr;
+}
+
+/* Custom layout helpers */
+.ink-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .ink-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
 }
